@@ -1,67 +1,61 @@
 var Service, Characteristic;
-var request = require('sync-request');
+var request = require("request");
 
 var temperatureService;
 var humidityService;
-var url 
-var humidity = 0;
-var temperature = 0;
 
 module.exports = function (homebridge) {
     Service = homebridge.hap.Service;
     Characteristic = homebridge.hap.Characteristic;
-    homebridge.registerAccessory("homebridge-httptemperaturehumidity", "HttpTemphum", HttpTemphum);
+    homebridge.registerAccessory("homebridge-HttpTemperatureHumidity", "HttpTempHum", HttpTempHum);
 }
 
 
-function HttpTemphum(log, config) {
+function HttpTempHum(log, config) {
     this.log = log;
 
     // url info
-    this.url = config["url"];
+    this.url = config["temp_url"];
     this.http_method = config["http_method"];
     this.sendimmediately = config["sendimmediately"];
     this.name = config["name"];
 }
 
-HttpTemphum.prototype = {
-
-    httpRequest: function (url, body, method, username, password, sendimmediately, callback) {
+HttpTempHum.prototype = {
+   
+    httpRequest: function(u, body, method, username, password, sendimmediately, callback) {
+        //this.log(u);
         request({
-                    url: url,
-                    body: body,
-                    method: method,
-                    rejectUnauthorized: false
-                },
-                function (error, response, body) {
-                    callback(error, response, body)
-                })
-    },
-
-    getStateHumidity: function(callback){    
-		callback(null, this.humidity);
+          url: u,
+          body: body,
+          method: method,
+        },
+        function(error, response, body) {
+          callback(error, response, body)
+        })
     },
 
     getState: function (callback) {
+        
         var body;
 
-		var res = request(this.http_method, this.url, {});
-		if(res.statusCode > 400){
-			this.log('HTTP power function failed');
-			callback(error);
-		}else{
-			this.log('HTTP power function succeeded!');
-            var info = JSON.parse(res.body);
+        this.httpRequest(this.url, body, this.http_method, this.username, this.password, this.sendimmediately, function (error, response, responseBody) {
+            if (error) {
+                this.log('HTTP temperature request failed: %s', error.message);
+                callback(error);
+            } else {
+                this.log('HTTP temperature request succeeded');
+                var info = JSON.parse(responseBody);
 
-            temperatureService.setCharacteristic(Characteristic.CurrentTemperature, info.temperature);
-            humidityService.setCharacteristic(Characteristic.CurrentRelativeHumidity, info.humidity);
+                temperatureService.setCharacteristic(Characteristic.CurrentTemperature, info.temperature);
+                humiditySensor.setCharacteristic(Characteristic.CurrentRelativeHumidity, info.humidity);
 
-            this.log(res.body);
-            this.log(info);
-            this.temperature = info.temperature;
-			callback(null, this.temperature);
-		}
+                //this.log(response);
+                //this.log(responseBody);
 
+                callback();
+            }
+        }.bind(this));
     },
 
     identify: function (callback) {
@@ -85,7 +79,7 @@ HttpTemphum.prototype = {
         humidityService = new Service.HumiditySensor(this.name);
         humidityService
                 .getCharacteristic(Characteristic.CurrentRelativeHumidity)
-                .on('get', this.getStateHumidity.bind(this));
+                .on('get', this.getState.bind(this));
 
         return [temperatureService, humidityService];
     }
